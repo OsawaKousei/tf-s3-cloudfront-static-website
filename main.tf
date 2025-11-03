@@ -46,53 +46,20 @@ resource "aws_s3_bucket_versioning" "website_bucket_versioning" {
   }
 }
 
-# S3バケットの静的ウェブサイト設定
-resource "aws_s3_bucket_website_configuration" "website_bucket_config" {
-  bucket = aws_s3_bucket.website_bucket.id
-
-  index_document {
-    suffix = "index.html"
-  }
-
-  error_document {
-    key = "error.html"
-  }
-}
-
-# S3バケットのパブリックアクセス設定
+# S3バケットのパブリックアクセス設定 (OACのため、すべてブロック)
 resource "aws_s3_bucket_public_access_block" "website_bucket_pab" {
   bucket = aws_s3_bucket.website_bucket.id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
-}
-
-# S3バケットポリシー
-resource "aws_s3_bucket_policy" "website_bucket_policy" {
-  bucket = aws_s3_bucket.website_bucket.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "PublicReadGetObject"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.website_bucket.arn}/*"
-      }
-    ]
-  })
-
-  depends_on = [aws_s3_bucket_public_access_block.website_bucket_pab]
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 # CloudFront Origin Access Control
 resource "aws_cloudfront_origin_access_control" "oac" {
-  name                              = "s3-oac-${var.bucket_name}"
-  description                       = "OAC for ${var.bucket_name}"
+  name                        = "s3-oac-${var.bucket_name}"
+  description                 = "OAC for ${var.bucket_name}"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -187,7 +154,7 @@ resource "aws_cloudfront_distribution" "website_distribution" {
   }
 }
 
-# CloudFrontからS3バケットへのアクセスを許可するバケットポリシーを更新
+# CloudFrontからS3バケットへのアクセスを許可するバケットポリシー (OAC用)
 resource "aws_s3_bucket_policy" "cloudfront_access_policy" {
   bucket = aws_s3_bucket.website_bucket.id
 
@@ -200,10 +167,11 @@ resource "aws_s3_bucket_policy" "cloudfront_access_policy" {
         Principal = {
           Service = "cloudfront.amazonaws.com"
         }
-        Action   = "s3:GetObject"
-        Resource = "${aws_s3_bucket.website_bucket.arn}/*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.website_bucket.arn}/*"
         Condition = {
           StringEquals = {
+            # OACを使用する場合、SourceArnはCloudFrontディストリビューションのARNになります
             "AWS:SourceArn" = aws_cloudfront_distribution.website_distribution.arn
           }
         }
@@ -221,10 +189,4 @@ resource "aws_s3_bucket_policy" "cloudfront_access_policy" {
 output "cloudfront_domain_name" {
   description = "CloudFront distribution domain name"
   value       = aws_cloudfront_distribution.website_distribution.domain_name
-}
-
-# S3バケットのウェブサイトエンドポイントを出力
-output "s3_website_endpoint" {
-  description = "S3 bucket website endpoint"
-  value       = aws_s3_bucket_website_configuration.website_bucket_config.website_endpoint
 }
