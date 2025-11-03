@@ -179,7 +179,6 @@ terraform destroy
 
 デプロイ後、以下の情報が出力されます：
 - `cloudfront_domain_name`: CloudFrontディストリビューションのドメイン名
-- `s3_website_endpoint`: S3バケットの静的ウェブサイトエンドポイント
 
 ## ファイル構成
 
